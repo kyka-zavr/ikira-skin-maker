@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IKIRA Skin Maker</title>
+<style>
+  :root { color-scheme: dark; --bg:#14171b; --panel:#1c2026; --line:#2b3038; --text:#e6e9ee; --muted:#8fa0b3; --accent:#00b8d4; }
+  * { box-sizing: border-box; }
+  body { margin:0; height:100vh; display:flex; background:var(--bg); color:var(--text); font:14px/1.45 system-ui,"Segoe UI",sans-serif; }
+  aside { width:340px; flex:none; overflow-y:auto; padding:16px; background:var(--panel); border-right:1px solid var(--line); }
+  h1 { font-size:18px; margin:0 0 4px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin:20px 0 8px; }
+  p.hint { margin:4px 0 0; font-size:12px; color:var(--muted); }
+  label { display:block; margin:10px 0 4px; }
+  select, input[type=text], input[type=number] { width:100%; padding:7px 8px; background:#101317; color:var(--text); border:1px solid var(--line); border-radius:6px; font:inherit; }
+  input[type=color] { width:100%; height:34px; padding:0; border:0; background:none; cursor:pointer; }
+  input[type=range] { width:100%; }
+  input[type=file] { width:100%; }
+  .row { display:flex; gap:8px; }
+  .row > * { flex:1; }
+  button { padding:8px 10px; border-radius:6px; border:1px solid #3a424d; background:#2a3039; color:var(--text); cursor:pointer; font:inherit; }
+  button:hover { background:#343c47; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#001318; font-weight:600; }
+  button.primary:hover { filter:brightness(1.1); }
+  h3 { font-size:12px; color:var(--muted); margin:14px 0 4px; padding-top:8px; border-top:1px solid var(--line); }
+  li button.mini { padding:2px 6px; font-size:12px; flex:none; background:transparent; border-color:transparent; }
+  li button.mini.on { color:var(--accent); }
+  ul { list-style:none; margin:8px 0 0; padding:0; }
+  li { display:flex; align-items:center; gap:6px; padding:6px; border-radius:6px; cursor:pointer; }
+  li.sel { background:#26303b; outline:1px solid var(--accent); }
+  li img { width:34px; height:34px; object-fit:contain; background:#101317; border-radius:4px; }
+  li .tag { width:34px; height:34px; display:grid; place-items:center; background:#101317; border-radius:4px; font-weight:700; }
+  li span.name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  main { flex:1; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden;
+         background:radial-gradient(circle at 50% 40%, #232830, #14171b 70%); }
+  #stage { --ar:1; position:relative; width:min(calc((100vh - 32px) * var(--ar)), calc(100vw - 372px)); aspect-ratio:var(--ar); }
+  canvas#cv { width:100%; height:100%; display:block; touch-action:none; cursor:crosshair; box-shadow:0 10px 40px #0009; background:#000; }
+  #status { position:absolute; left:12px; bottom:8px; font-size:12px; color:var(--muted); pointer-events:none; }
+  #busy { position:absolute; inset:0; display:none; place-items:center; background:#000a; font-size:16px; }
+  @media (max-width:820px) {
+    body { flex-direction:column; height:auto; min-height:100vh; }
+    aside { width:100%; border-right:0; border-bottom:1px solid var(--line); }
+    main { min-height:100vw; }
+    #stage { width:100vw; }
+  }
+</style>
+</head>
+<body>
+<aside>
+  <h1>IKIRA Skin Maker</h1>
+  <p class="hint">Рисуй неон и наклейки на развёртке и скачивай готовый .dds для мода.</p>
+
+  <h2>Кабина</h2>
+  <select id="cabin"></select>
+  <label><input type="checkbox" id="showGrid" checked> Сетка UV (подсказка)</label>
+  <label>Яркость сетки: <span id="gridVal">60</span>%</label>
+  <input type="range" id="guideOpacity" min="5" max="100" value="60">
+  <p class="hint">Сетка рисуется только на экране и не попадает в сохранённый файл.</p>
+
+  <h2>Цвета</h2>
+  <div class="row">
+    <div><label>Фон</label><input type="color" id="baseColor" value="#000000"></div>
+    <div><label>Неон</label><input type="color" id="neonColor" value="#00e5ff"></div>
+  </div>
+  <label>Яркость неона: <span id="brightVal">100</span>%</label>
+  <input type="range" id="bright" min="0" max="200" value="100">
+  <label><input type="checkbox" id="showNeon" checked> Показывать неон</label>
+
+  <h2>Наклейки</h2>
+  <input type="file" id="stickerFile" accept="image/png,image/jpeg,image/webp" multiple>
+  <p class="hint">Перетаскивай на холсте, колесо мыши меняет размер, Delete удаляет.</p>
+
+  <h2>Текст</h2>
+  <label>Надпись</label>
+  <input type="text" id="textInput" value="IKIRA">
+  <div class="row">
+    <div><label>Шрифт</label>
+      <select id="fontSel">
+        <option>Arial Black</option><option>Impact</option><option>Arial</option>
+        <option>Verdana</option><option>Segoe UI</option><option>Consolas</option><option>Georgia</option>
+      </select></div>
+    <div><label>Цвет</label><input type="color" id="textColor" value="#ffffff"></div>
+  </div>
+  <div class="row">
+    <div><label>Обводка</label><input type="color" id="outlineColor" value="#00e5ff"></div>
+    <div><label>Толщина, %</label><input type="number" id="outlineW" value="6" min="0" max="30"></div>
+  </div>
+  <div class="row" style="margin-top:8px"><button id="addText">Добавить текст</button></div>
+
+  <h2>Слои</h2>
+  <ul id="layers"></ul>
+  <div id="ctrl" style="display:none">
+    <div id="textEdit" style="display:none">
+      <label>Текст слоя</label>
+      <input type="text" id="layerText">
+    </div>
+
+    <h3>Размер и форма</h3>
+    <label>Размер: <span id="sVal"></span></label>
+    <input type="range" id="scale" min="1" max="100" value="20">
+    <div class="row">
+      <div><label>Ширина: <span id="sxVal">100</span>%</label><input type="range" id="sx" min="20" max="300" value="100"></div>
+      <div><label>Высота: <span id="syVal">100</span>%</label><input type="range" id="sy" min="20" max="300" value="100"></div>
+    </div>
+    <div class="row" style="margin-top:6px"><button id="resetShape">Сбросить форму</button></div>
+
+    <h3>Поворот и отражение</h3>
+    <label>Поворот: <span id="rVal">0</span>°</label>
+    <input type="range" id="rot" min="-180" max="180" value="0">
+    <div class="row"><button id="rotM90">−90°</button><button id="rot0">0°</button><button id="rotP90">+90°</button></div>
+    <div class="row" style="margin-top:6px"><button id="flipX">↔ Отразить</button><button id="flipY">↕ Отразить</button></div>
+
+    <h3>Вид</h3>
+    <label>Прозрачность: <span id="opVal">100</span>%</label>
+    <input type="range" id="opacity" min="0" max="100" value="100">
+    <label>Режим наложения</label>
+    <select id="blend">
+      <option value="source-over">Обычный</option>
+      <option value="lighter">Свечение (добавить свет)</option>
+      <option value="screen">Экран</option>
+      <option value="multiply">Умножение</option>
+    </select>
+    <div class="row" style="align-items:end">
+      <div><label><input type="checkbox" id="tintOn"> Окрасить</label></div>
+      <div><input type="color" id="tint" value="#00e5ff"></div>
+    </div>
+    <label>Свечение: <span id="igVal">0</span></label>
+    <input type="range" id="itemGlow" min="0" max="100" value="0">
+
+    <h3>Положение</h3>
+    <div class="row">
+      <div><label>X, px</label><input type="number" id="posX" min="0" max="4096"></div>
+      <div><label>Y, px</label><input type="number" id="posY" min="0" max="4096"></div>
+    </div>
+    <div class="row" style="margin-top:6px"><button id="cX">По центру X</button><button id="cY">По центру Y</button></div>
+    <p class="hint">Стрелки двигают слой на 1 px, с Shift на 20 px. Ctrl+D дублирует.</p>
+
+    <h3>Слой</h3>
+    <div class="row"><button id="up">Выше</button><button id="down">Ниже</button></div>
+    <div class="row" style="margin-top:6px"><button id="top">Наверх</button><button id="bottom">Вниз</button></div>
+    <div class="row" style="margin-top:6px"><button id="mirrorCopy">Зеркальная копия (лево/право)</button></div>
+    <div class="row" style="margin-top:6px"><button id="dup">Дублировать</button><button id="del">Удалить</button></div>
+  </div>
+
+  <h2>Скачать</h2>
+  <label>Имя файла (без расширения)</label>
+  <input type="text" id="fileName" value="ikiras01n">
+  <p class="hint">В имени игра принимает буквы и цифры, подчёркивания лучше не использовать. Файл должен совпадать с ид раскраски в моде.</p>
+  <div class="row" style="margin-top:10px">
+    <button class="primary" id="dlDds">Скачать .dds</button>
+    <button id="dlPng">Скачать .png</button>
+  </div>
+  <p class="hint">DDS сохраняется в DXT5 с mip-уровнями (как у официальных раскрасок), 4096×4096.</p>
+</aside>
+
+<main>
+  <div id="stage">
+    <canvas id="cv" width="4096" height="4096"></canvas>
+    <div id="status"></div>
+    <div id="busy">Кодирую DDS…</div>
+  </div>
+</main>
+
+<script>
+let CW = 4096, CH = 4096;     // размер холста: у кабин 4096x4096, у прицепа 4096x2048 (берётся из текстуры)
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+
+// ---------- список кабин ----------
+const CABINS = [
+  ['Scania S', 'Normal Roof',        'scania_s__S_Cabin_B_Normal_Roof_neon.png',      'ikiras01n'],
+  ['Scania S', 'High Roof',          'scania_s__S_Cabin_A_High_Roof_neon.png',        'ikiras01h'],
+  ['Scania S', '8x4 High Roof',      'scania_s__S_Cabin_8x4_High_Roof_neon.png',      'ikiras01x'],
+  ['Scania R', 'Normal Roof',        'scania_r__R_Cabin_B_Normal_Roof_neon.png',      'ikirar01n'],
+  ['Scania R', 'High Roof',          'scania_r__R_Cabin_A_High_Roof_neon.png',        'ikirar01h'],
+  ['Scania R', '8x4 High Roof',      'scania_r__R_Cabin_8x4_High_Roof_neon.png',      'ikirar01x'],
+  ['Volvo FH 2021', 'Sleeper',       'volvo_fh_2021__Cabin_C_Sleeper_neon.png',       'ikirav2101s'],
+  ['Volvo FH 2021', 'Globetrotter',  'volvo_fh_2021__Cabin_B_Globetrotter_neon.png',  'ikirav2101g'],
+  ['Volvo FH 2021', 'Globetrotter XL','volvo_fh_2021__Cabin_A_Globetrotter_XL_neon.png','ikirav2101l'],
+  ['Volvo FH 2024', 'Sleeper',       'volvo_fh_2024__Cabin_D_Sleeper_neon.png',       'ikirav2401s'],
+  ['Volvo FH 2024', 'Globetrotter',  'volvo_fh_2024__Cabin_C_Globetrotter_neon.png',  'ikirav2401g'],
+  ['Volvo FH 2024', 'Globetrotter XL','volvo_fh_2024__Cabin_B_Globetrotter_XL_neon.png','ikirav2401l'],
+  ['Volvo FH 2024', 'Globetrotter XXL','volvo_fh_2024__Cabin_A_Globetrotter_XXL_neon.png','ikirav2401k'],
+  ['Прицеп', 'Шторник 13.6 м (одиночный)',      'trailer_curtain__Curtainsider_Long_neon.png',     'ikiratrl01c'],
+  ['Прицеп', 'Шторник 7.8 м (двойная сцепка)',  'trailer_curtain__Curtainsider_Double_neon.png',   'ikiratrl01d'],
+  ['Прицеп', 'Шторник 7.8 м (B-double)',        'trailer_curtain__Curtainsider_B-Double_neon.png', 'ikiratrl01b'],
+];
+const sel = $('cabin');
+CABINS.forEach((c, i) => {
+  const o = document.createElement('option');
+  o.value = i; o.textContent = `${c[0]} — ${c[1]}`;
+  sel.append(o);
+});
+
+// ---------- состояние ----------
+let neonImg = null;          // белая текстура неона текущей кабины
+let gridImg = null;          // сетка UV текущей кабины (только для экрана)
+let tintCanvas = null;       // неон, окрашенный в выбранный цвет
+let items = [];              // наклейки и текст
+let selIdx = -1;
+let drag = null;
+let raf = 0;
+
+function setStatus(t) { $('status').textContent = t; }
+
+function loadImage(src) {
+  return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
+}
+
+async function loadCabin() {
+  const c = CABINS[+sel.value];
+  setStatus('Загружаю ' + c[0] + ' — ' + c[1] + '…');
+  try {
+    // ?v=... не даёт браузеру показывать старую копию после замены файла текстуры
+    const bust = '?v=' + Date.now();
+    neonImg = await loadImage('textures/' + c[2] + bust);
+    $('fileName').value = c[3];
+    // холст = размер текстуры кабины (прицеп 4096x2048, кабины 4096x4096)
+    CW = neonImg.naturalWidth; CH = neonImg.naturalHeight;
+    cv.width = CW; cv.height = CH;
+    $('stage').style.setProperty('--ar', CW / CH);
+    retint();
+    try { gridImg = await loadImage('guides/' + c[2].replace('_neon.png', '_uv.png') + bust); }
+    catch (e) { gridImg = null; }
+    setStatus(c[0] + ' — ' + c[1]);
+  } catch (e) {
+    neonImg = null;
+    setStatus('Не удалось загрузить текстуру. Открой сайт через сервер (http://localhost:8765/).');
+  }
+  schedule();
+}
+
+function retint() {
+  if (!neonImg) return;
+  if (!tintCanvas) tintCanvas = document.createElement('canvas');
+  if (tintCanvas.width !== CW || tintCanvas.height !== CH) { tintCanvas.width = CW; tintCanvas.height = CH; }
+  const t = tintCanvas.getContext('2d');
+  t.globalCompositeOperation = 'source-over';
+  t.clearRect(0, 0, CW, CH);
+  t.drawImage(neonImg, 0, 0, CW, CH);
+  // белое -> цвет неона, чёрное остаётся чёрным
+  t.globalCompositeOperation = 'multiply';
+  t.fillStyle = $('neonColor').value;
+  t.fillRect(0, 0, CW, CH);
+  t.globalCompositeOperation = 'source-over';
+}
+
+// ---------- отрисовка ----------
+// значения по умолчанию для любого слоя (наклейка или текст)
+function mkItem(o) {
+  return Object.assign({
+    opacity: 1, flipX: false, flipY: false, sx: 1, sy: 1,
+    blend: 'source-over', tintOn: false, tint: '#00e5ff', glow: 0,
+    visible: true, locked: false,
+  }, o);
+}
+
+function tintedSticker(it, w, h) {
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h));
+  const t = c.getContext('2d');
+  t.drawImage(it.img, 0, 0, c.width, c.height);
+  t.globalCompositeOperation = 'source-atop';       // красим только непрозрачные пиксели
+  t.fillStyle = it.tint;
+  t.fillRect(0, 0, c.width, c.height);
+  return c;
+}
+
+function drawItem(it, showSel) {
+  if (!it.visible) return;
+  ctx.save();
+  ctx.translate(it.x * CW, it.y * CH);
+  ctx.rotate(it.r * Math.PI / 180);
+  ctx.globalAlpha = it.opacity;
+  ctx.globalCompositeOperation = it.blend;
+  if (it.glow > 0) {
+    ctx.shadowColor = it.tintOn ? it.tint : (it.type === 'text' ? it.color : '#ffffff');
+    ctx.shadowBlur = it.glow * CW / 1000;
+  }
+  ctx.save();
+  ctx.scale((it.flipX ? -1 : 1) * it.sx, (it.flipY ? -1 : 1) * it.sy);
+  if (it.type === 'sticker') {
+    const w = it.s * CW, h = w * it.img.height / it.img.width;
+    it._w = w * it.sx; it._h = h * it.sy;
+    ctx.drawImage(it.tintOn ? tintedSticker(it, w, h) : it.img, -w / 2, -h / 2, w, h);
+  } else {
+    const size = it.s * CW;
+    ctx.font = `${size}px "${it.font}"`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    it._w = ctx.measureText(it.text).width * it.sx;
+    it._h = size * it.sy;
+    if (it.outlineW > 0) {
+      ctx.lineWidth = size * it.outlineW / 100;
+      ctx.strokeStyle = it.outline;
+      ctx.strokeText(it.text, 0, 0);
+    }
+    ctx.fillStyle = it.tintOn ? it.tint : it.color;
+    ctx.fillText(it.text, 0, 0);
+  }
+  ctx.restore();                                     // снимаем масштаб и отражение
+  ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  if (showSel) {
+    ctx.setLineDash([14, 10]);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = it.locked ? '#ffb300' : '#00e5ff';
+    ctx.strokeRect(-it._w / 2 - 8, -it._h / 2 - 8, it._w + 16, it._h + 16);
+  }
+  ctx.restore();
+}
+
+function render(forExport) {
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = $('baseColor').value;
+  ctx.fillRect(0, 0, CW, CH);
+  if ($('showNeon').checked && tintCanvas) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.min(2, +$('bright').value / 100);
+    ctx.drawImage(tintCanvas, 0, 0);
+    if (+$('bright').value > 100) {      // выше 100% - добавляем ещё слой света
+      ctx.globalAlpha = (+$('bright').value - 100) / 100;
+      ctx.drawImage(tintCanvas, 0, 0);
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  items.forEach((it, i) => drawItem(it, !forExport && i === selIdx));
+  // сетка UV рисуется поверх, только на экране (в файл не попадает)
+  if (!forExport && gridImg && $('showGrid').checked) {
+    ctx.globalAlpha = +$('guideOpacity').value / 100;
+    ctx.drawImage(gridImg, 0, 0, CW, CH);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function schedule() {
+  if (raf) return;
+  raf = requestAnimationFrame(() => { raf = 0; render(false); });
+}
+
+// ---------- слои ----------
+function miniBtn(text, title, on, handler) {
+  const b = document.createElement('button');
+  b.className = 'mini' + (on ? ' on' : '');
+  b.textContent = text; b.title = title;
+  b.addEventListener('click', ev => { ev.stopPropagation(); handler(); });
+  return b;
+}
+
+function refreshLayers() {
+  const ul = $('layers');
+  ul.innerHTML = '';
+  // верхний слой показываем первым
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    const li = document.createElement('li');
+    if (i === selIdx) li.classList.add('sel');
+    if (it.type === 'sticker') {
+      const im = document.createElement('img'); im.src = it.img.src; li.append(im);
+    } else {
+      const tg = document.createElement('div'); tg.className = 'tag'; tg.textContent = 'T'; li.append(tg);
+    }
+    const sp = document.createElement('span'); sp.className = 'name';
+    sp.textContent = it.type === 'sticker' ? it.name : it.text;
+    li.append(sp);
+    li.append(miniBtn(it.visible ? '👁' : '🚫', 'Показать/скрыть', it.visible, () => { it.visible = !it.visible; refreshLayers(); schedule(); }));
+    li.append(miniBtn(it.locked ? '🔒' : '🔓', 'Заблокировать от перетаскивания', it.locked, () => { it.locked = !it.locked; refreshLayers(); schedule(); }));
+    li.addEventListener('click', () => select(i));
+    ul.append(li);
+  }
+  $('ctrl').style.display = selIdx >= 0 ? 'block' : 'none';
+  syncCtrl();
+}
+
+function select(i) { selIdx = i; refreshLayers(); schedule(); }
+
+function syncCtrl() {
+  if (selIdx < 0) return;
+  const it = items[selIdx];
+  const pct = Math.round(it.s * 100);
+  $('scale').value = it.type === 'sticker' ? pct : Math.round(it.s * 100 * 2);
+  $('sVal').textContent = it.type === 'sticker' ? pct + '%' : Math.round(it.s * CW) + ' px';
+  $('sx').value = Math.round(it.sx * 100); $('sxVal').textContent = Math.round(it.sx * 100);
+  $('sy').value = Math.round(it.sy * 100); $('syVal').textContent = Math.round(it.sy * 100);
+  $('rot').value = it.r;
+  $('rVal').textContent = Math.round(it.r);
+  $('opacity').value = Math.round(it.opacity * 100); $('opVal').textContent = Math.round(it.opacity * 100);
+  $('blend').value = it.blend;
+  $('tintOn').checked = it.tintOn;
+  $('tint').value = it.tint;
+  $('itemGlow').value = it.glow; $('igVal').textContent = it.glow;
+  $('posX').value = Math.round(it.x * CW);
+  $('posY').value = Math.round(it.y * CH);
+  $('posX').max = CW; $('posY').max = CH;
+  $('textEdit').style.display = it.type === 'text' ? 'block' : 'none';
+  if (it.type === 'text' && document.activeElement !== $('layerText')) $('layerText').value = it.text;
+}
+
+$('stickerFile').addEventListener('change', async e => {
+  for (const f of e.target.files) {
+    const img = await loadImage(URL.createObjectURL(f));
+    items.push(mkItem({ type: 'sticker', img, name: f.name, x: 0.5, y: 0.5, s: 0.2, r: 0 }));
+    selIdx = items.length - 1;
+  }
+  e.target.value = '';
+  refreshLayers(); schedule();
+});
+
+$('addText').addEventListener('click', () => {
+  items.push(mkItem({
+    type: 'text', text: $('textInput').value || 'TEXT', font: $('fontSel').value,
+    color: $('textColor').value, outline: $('outlineColor').value, outlineW: +$('outlineW').value,
+    x: 0.5, y: 0.5, s: 0.04, r: 0,
+  }));
+  selIdx = items.length - 1;
+  refreshLayers(); schedule();
+});
+
+// изменение свойства выбранного слоя одним вызовом
+function setProp(fn) {
+  if (selIdx < 0) return;
+  fn(items[selIdx]);
+  syncCtrl(); schedule();
+}
+const normAngle = a => ((a + 540) % 360) - 180;
+
+$('scale').addEventListener('input', e => setProp(it => { it.s = it.type === 'sticker' ? e.target.value / 100 : e.target.value / 200; }));
+$('sx').addEventListener('input', e => setProp(it => { it.sx = e.target.value / 100; }));
+$('sy').addEventListener('input', e => setProp(it => { it.sy = e.target.value / 100; }));
+$('resetShape').addEventListener('click', () => setProp(it => { it.sx = 1; it.sy = 1; }));
+$('rot').addEventListener('input', e => setProp(it => { it.r = +e.target.value; }));
+$('rotM90').addEventListener('click', () => setProp(it => { it.r = normAngle(it.r - 90); }));
+$('rotP90').addEventListener('click', () => setProp(it => { it.r = normAngle(it.r + 90); }));
+$('rot0').addEventListener('click', () => setProp(it => { it.r = 0; }));
+$('flipX').addEventListener('click', () => setProp(it => { it.flipX = !it.flipX; }));
+$('flipY').addEventListener('click', () => setProp(it => { it.flipY = !it.flipY; }));
+$('opacity').addEventListener('input', e => setProp(it => { it.opacity = e.target.value / 100; }));
+$('blend').addEventListener('change', e => setProp(it => { it.blend = e.target.value; }));
+$('tintOn').addEventListener('change', e => setProp(it => { it.tintOn = e.target.checked; }));
+$('tint').addEventListener('input', e => setProp(it => { it.tint = e.target.value; it.tintOn = true; }));
+$('itemGlow').addEventListener('input', e => setProp(it => { it.glow = +e.target.value; }));
+$('posX').addEventListener('input', e => setProp(it => { it.x = Math.min(1, Math.max(0, +e.target.value / CW)); }));
+$('posY').addEventListener('input', e => setProp(it => { it.y = Math.min(1, Math.max(0, +e.target.value / CH)); }));
+$('cX').addEventListener('click', () => setProp(it => { it.x = 0.5; }));
+$('cY').addEventListener('click', () => setProp(it => { it.y = 0.5; }));
+
+$('layerText').addEventListener('input', e => {
+  if (selIdx < 0 || items[selIdx].type !== 'text') return;
+  items[selIdx].text = e.target.value;
+  const names = document.querySelectorAll('#layers li span.name');
+  const row = items.length - 1 - selIdx;           // список показывается в обратном порядке
+  if (names[row]) names[row].textContent = items[selIdx].text;
+  schedule();
+});
+
+// порядок слоёв
+function moveTo(newIdx) {
+  if (selIdx < 0) return;
+  newIdx = Math.max(0, Math.min(items.length - 1, newIdx));
+  if (newIdx === selIdx) return;
+  const [it] = items.splice(selIdx, 1);
+  items.splice(newIdx, 0, it);
+  selIdx = newIdx;
+  refreshLayers(); schedule();
+}
+$('up').addEventListener('click', () => moveTo(selIdx + 1));
+$('down').addEventListener('click', () => moveTo(selIdx - 1));
+$('top').addEventListener('click', () => moveTo(items.length - 1));
+$('bottom').addEventListener('click', () => moveTo(0));
+
+function addCopy(c) { items.push(c); selIdx = items.length - 1; refreshLayers(); schedule(); }
+$('dup').addEventListener('click', duplicateSelected);
+function duplicateSelected() {
+  if (selIdx < 0) return;
+  const c = Object.assign({}, items[selIdx]);
+  c.x = Math.min(0.95, c.x + 0.03); c.y = Math.min(0.95, c.y + 0.03);
+  c.locked = false;
+  addCopy(c);
+}
+// зеркальная копия: для левой/правой стороны кабины
+$('mirrorCopy').addEventListener('click', () => {
+  if (selIdx < 0) return;
+  const c = Object.assign({}, items[selIdx]);
+  c.x = 1 - c.x; c.flipX = !c.flipX; c.r = normAngle(-c.r); c.locked = false;
+  addCopy(c);
+});
+
+$('del').addEventListener('click', removeSelected);
+function removeSelected() {
+  if (selIdx < 0) return;
+  items.splice(selIdx, 1); selIdx = -1;
+  refreshLayers(); schedule();
+}
+document.addEventListener('keydown', e => {
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  if (e.key === 'Delete') { removeSelected(); return; }
+  if (selIdx < 0) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelected(); return; }
+  const px = e.shiftKey ? 20 : 1;
+  const it = items[selIdx];
+  if (it.locked) return;
+  if (e.key === 'ArrowLeft') it.x -= px / CW;
+  else if (e.key === 'ArrowRight') it.x += px / CW;
+  else if (e.key === 'ArrowUp') it.y -= px / CH;
+  else if (e.key === 'ArrowDown') it.y += px / CH;
+  else return;
+  e.preventDefault();
+  syncCtrl(); schedule();
+});
+
+// ---------- мышь ----------
+function toTex(e) {
+  const r = cv.getBoundingClientRect();
+  return [(e.clientX - r.left) / r.width * CW, (e.clientY - r.top) / r.height * CH];
+}
+function hit(tx, ty) {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    if (!it.visible) continue;
+    const a = -it.r * Math.PI / 180;
+    const dx = tx - it.x * CW, dy = ty - it.y * CH;
+    const lx = dx * Math.cos(a) - dy * Math.sin(a);
+    const ly = dx * Math.sin(a) + dy * Math.cos(a);
+    if (Math.abs(lx) <= (it._w || 0) / 2 && Math.abs(ly) <= (it._h || 0) / 2) return i;
+  }
+  return -1;
+}
+cv.addEventListener('pointerdown', e => {
+  const [tx, ty] = toTex(e);
+  const i = hit(tx, ty);
+  selIdx = i;
+  if (i >= 0 && !items[i].locked) { drag = { dx: tx - items[i].x * CW, dy: ty - items[i].y * CH }; cv.setPointerCapture(e.pointerId); }
+  refreshLayers(); schedule();
+});
+cv.addEventListener('pointermove', e => {
+  if (!drag || selIdx < 0) return;
+  const [tx, ty] = toTex(e);
+  items[selIdx].x = (tx - drag.dx) / CW;
+  items[selIdx].y = (ty - drag.dy) / CH;
+  $('posX').value = Math.round(items[selIdx].x * CW);
+  $('posY').value = Math.round(items[selIdx].y * CH);
+  schedule();
+});
+cv.addEventListener('pointerup', () => { drag = null; });
+cv.addEventListener('wheel', e => {
+  if (selIdx < 0 || items[selIdx].locked) return;
+  e.preventDefault();
+  const it = items[selIdx];
+  it.s = Math.min(1, Math.max(0.005, it.s * (e.deltaY < 0 ? 1.05 : 0.95)));
+  syncCtrl(); schedule();
+}, { passive: false });
+
+// ---------- прочие контролы ----------
+sel.addEventListener('change', loadCabin);
+['baseColor', 'showNeon', 'bright', 'guideOpacity', 'showGrid'].forEach(id => $(id).addEventListener('input', () => {
+  $('brightVal').textContent = $('bright').value;
+  $('gridVal').textContent = $('guideOpacity').value;
+  schedule();
+}));
+$('neonColor').addEventListener('input', () => { retint(); schedule(); });
+
+// ---------- DXT5 (BC3) энкодер ----------
+function to565(r, g, b) {
+  const R = Math.round(r * 31 / 255), G = Math.round(g * 63 / 255), B = Math.round(b * 31 / 255);
+  return (R << 11) | (G << 5) | B;
+}
+function from565(v) {
+  return [((v >> 11) & 31) * 255 / 31, ((v >> 5) & 63) * 255 / 63, (v & 31) * 255 / 31];
+}
+function encodeLevel(data, W, H) {
+  const bw = W / 4, bh = H / 4;
+  const out = new Uint8Array(bw * bh * 16);
+  let o = 0;
+  const px = new Float32Array(48);
+  for (let by = 0; by < bh; by++) {
+    for (let bx = 0; bx < bw; bx++) {
+      let minR = 255, minG = 255, minB = 255, maxR = 0, maxG = 0, maxB = 0, k = 0;
+      for (let y = 0; y < 4; y++) {
+        for (let x = 0; x < 4; x++) {
+          const i = ((by * 4 + y) * W + bx * 4 + x) * 4;
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          px[k++] = r; px[k++] = g; px[k++] = b;
+          if (r < minR) minR = r; if (r > maxR) maxR = r;
+          if (g < minG) minG = g; if (g > maxG) maxG = g;
+          if (b < minB) minB = b; if (b > maxB) maxB = b;
+        }
+      }
+      let c0 = to565(maxR, maxG, maxB), c1 = to565(minR, minG, minB);
+      if (c0 < c1) { const t = c0; c0 = c1; c1 = t; }
+      const p0 = from565(c0), p1 = from565(c1);
+      const pal = [
+        p0, p1,
+        [(2 * p0[0] + p1[0]) / 3, (2 * p0[1] + p1[1]) / 3, (2 * p0[2] + p1[2]) / 3],
+        [(p0[0] + 2 * p1[0]) / 3, (p0[1] + 2 * p1[1]) / 3, (p0[2] + 2 * p1[2]) / 3],
+      ];
+      let word = 0;
+      for (let p = 0; p < 16; p++) {
+        const r = px[p * 3], g = px[p * 3 + 1], b = px[p * 3 + 2];
+        let best = 0, bd = Infinity;
+        for (let c = 0; c < 4; c++) {
+          const dr = r - pal[c][0], dg = g - pal[c][1], db = b - pal[c][2];
+          const d = dr * dr + dg * dg + db * db;
+          if (d < bd) { bd = d; best = c; }
+        }
+        word |= best << (2 * p);
+      }
+      out[o++] = 255; out[o++] = 254;            // альфа: непрозрачно
+      o += 6;
+      out[o++] = c0 & 255; out[o++] = c0 >> 8;
+      out[o++] = c1 & 255; out[o++] = c1 >> 8;
+      out[o++] = word & 255; out[o++] = (word >>> 8) & 255;
+      out[o++] = (word >>> 16) & 255; out[o++] = (word >>> 24) & 255;
+    }
+  }
+  return out;
+}
+
+function buildDds(srcCanvas) {
+  const levels = [];
+  let w = srcCanvas.width, h = srcCanvas.height;
+  let cur = srcCanvas;
+  while (true) {
+    const pw = Math.max(4, w), ph = Math.max(4, h);
+    const pad = document.createElement('canvas');
+    pad.width = pw; pad.height = ph;
+    const pctx = pad.getContext('2d');
+    pctx.fillStyle = '#000'; pctx.fillRect(0, 0, pw, ph);
+    pctx.drawImage(cur, 0, 0, w, h);
+    const d = pctx.getImageData(0, 0, pw, ph).data;
+    levels.push(encodeLevel(d, pw, ph));
+    if (w === 1 && h === 1) break;
+    const nw = Math.max(1, w >> 1), nh = Math.max(1, h >> 1);
+    const nc = document.createElement('canvas');
+    nc.width = nw; nc.height = nh;
+    const nctx = nc.getContext('2d');
+    nctx.imageSmoothingEnabled = true; nctx.imageSmoothingQuality = 'high';
+    nctx.drawImage(cur, 0, 0, w, h, 0, 0, nw, nh);
+    cur = nc; w = nw; h = nh;
+  }
+  const total = levels.reduce((a, l) => a + l.length, 0);
+  const buf = new Uint8Array(128 + total);
+  const dv = new DataView(buf.buffer);
+  buf.set([0x44, 0x44, 0x53, 0x20], 0);                 // 'DDS '
+  dv.setUint32(4, 124, true);
+  dv.setUint32(8, 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000 | 0x80000, true);
+  dv.setUint32(12, srcCanvas.height, true);
+  dv.setUint32(16, srcCanvas.width, true);
+  dv.setUint32(20, (srcCanvas.width / 4) * (srcCanvas.height / 4) * 16, true);
+  dv.setUint32(28, levels.length, true);
+  dv.setUint32(76, 32, true);
+  dv.setUint32(80, 0x4, true);
+  buf.set([0x44, 0x58, 0x54, 0x35], 84);                // 'DXT5'
+  dv.setUint32(108, 0x8 | 0x400000 | 0x1000, true);
+  let off = 128;
+  for (const l of levels) { buf.set(l, off); off += l.length; }
+  return buf;
+}
+
+// ---------- скачивание ----------
+function safeName() {
+  return ($('fileName').value || 'skin').replace(/[^A-Za-z0-9]/g, '') || 'skin';
+}
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.append(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+$('dlPng').addEventListener('click', () => {
+  render(true);
+  cv.toBlob(b => { download(b, safeName() + '.png'); schedule(); }, 'image/png');
+});
+$('dlDds').addEventListener('click', () => {
+  $('busy').style.display = 'grid';
+  setTimeout(() => {
+    try {
+      render(true);
+      const dds = buildDds(cv);
+      download(new Blob([dds], { type: 'application/octet-stream' }), safeName() + '.dds');
+      setStatus('Сохранено: ' + safeName() + '.dds (' + (dds.length / 1048576).toFixed(1) + ' МБ)');
+    } catch (e) {
+      setStatus('Ошибка при сохранении: ' + e.message);
+    }
+    $('busy').style.display = 'none';
+    schedule();
+  }, 50);
+});
+
+loadCabin();
+</script>
+</body>
+</html>
